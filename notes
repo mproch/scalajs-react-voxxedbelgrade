@@ -1,0 +1,21 @@
+val map = OSMMap(target = null, layers = List(TileLayer(source = new OSM)), view = View(zoom = 10,
+  center = (0.0, 0.0)))
+
+
+
+def getLocation(data: String): Future[Option[GeoLocation]] =
+  optionT(getData[List[GeoLocation]](s"http://nominatim.openstreetmap.org/search?q=$data&format=json")
+    .map(_.headOption))
+    .flatMapF(location => getData[List[Comment]](s"http://localhost:8080/locationComment/${location.name}")
+    .map(location.addComments)).run
+
+
+
+def getData[T: Reader](url: String): Future[T] = {
+  Ajax.get(url)
+    .andThen({
+    case Failure(ex) => dom.alert(s"Failed ajax call with $ex")
+  })
+    .map(_.responseText)
+    .map(read[T])
+}
