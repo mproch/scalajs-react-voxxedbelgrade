@@ -1,20 +1,21 @@
 package pl.touk.scalajs
 
+import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.{React, ReactComponentB}
 import org.scalajs.dom
 import org.scalajs.dom.document
 import org.scalajs.dom.ext.Ajax
-import pl.mproch.openlayers._
 import pl.mproch.openlayers.OpenLayers.lonLatToMercator
+import pl.mproch.openlayers._
 import upickle.default._
 
 import scala.concurrent.Future
+import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js.annotation.JSExport
 import scala.util.Failure
 import scalatags.JsDom.all._
 import scalaz.OptionT._
-import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scalaz.std.scalaFuture.futureInstance
-
 
 @JSExport
 class HelloWorld {
@@ -25,6 +26,15 @@ class HelloWorld {
     .flatMapF(location =>
       getData[List[Comment]](s"http://localhost:8080/locationComment/${location.name}").map(location.addComments))
     .run
+
+  val GeoLocationRender = ReactComponentB[Option[GeoLocation]]("GeoLocationWithComments")
+    .render(locationO => <.div(
+      locationO.isEmpty ?= <.span("Sorry, no results found"),
+        locationO.map(location => <.div(<.b(location.name), <.ul(
+          location.comments.map(comm => <.li(comm.toString))
+        )))
+      ))
+    .build
 
 
   private def getData[T: Reader](url: String): Future[T]
@@ -45,21 +55,18 @@ class HelloWorld {
       center = (0.0, 0.0)))
 
     def append(): Unit = {
-      document.getElementById("value").textContent = inputEl.value
       val search = inputEl.value
-      getLocation(search).foreach(_.foreach(location => {
-        document.getElementById("value").textContent = location.toString
-        map.getView().setCenter(location.lonLat)
-      }))
+      getLocation(search).foreach(location => {
+        React.render(GeoLocationRender(location), document.getElementById("holder"))
+        location.foreach(loc => map.getView().setCenter(loc.lonLat))
+      })
     }
 
     val content = div(
       inputEl,
       button("Submit", onclick := append _),
-      div("The value you entered is: "),
-      b(span(id:="value")),
+      div(id:="holder"),
       div(height:="200px", width:="200px", id:="map")
-
     )
 
     document.getElementById("content").appendChild(content.render)
